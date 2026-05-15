@@ -4,9 +4,54 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Request Filter Logger 设置</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 24px; max-width: 900px; }
+      h1 { margin-bottom: 8px; }
+      .row { display: flex; gap: 8px; margin-bottom: 10px; align-items: center; }
+      input[type="text"] { width: 420px; padding: 6px; }
+      select { padding: 6px; }
+      button { padding: 6px 10px; }
+      table { border-collapse: collapse; width: 100%; margin-top: 16px; }
+      th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+      th { background: #f7f7f7; }
+      .muted { color: #666; font-size: 13px; }
+      .ok { color: #0b7a0b; }
+    </style>
   </head>
   <body>
-    <div id="app"></div>
-    <script type="module" src="/src/options.tsx"></script>
+    <h1>Request Filter Logger</h1>
+    <p class="muted">新增筛选规则：支持包含匹配（includes）和正则匹配（regex）。命中后会在扩展的 Service Worker 控制台打印请求信息。</p>
+
+    <div class="row">
+      <label>
+        <input id="enabled" type="checkbox" checked />
+        启用监听
+      </label>
+      <button id="saveToggle">保存开关</button>
+    </div>
+
+    <div class="row">
+      <select id="ruleType">
+        <option value="includes">includes</option>
+        <option value="regex">regex</option>
+      </select>
+      <input id="rulePattern" type="text" placeholder="例如 /api/order 或 ^https://example\\.com/api/" />
+      <button id="addRule">添加规则</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>启用</th>
+          <th>类型</th>
+          <th>匹配模式</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="rulesBody"></tbody>
+    </table>
+
+    <p id="message" class="ok"></p>
+    <script src="options.js"></script>
   </body>
 </html>
