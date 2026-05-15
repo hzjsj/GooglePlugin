@@ -1,49 +1,89 @@
-const SETTINGS_KEY = 'requestLoggerSettings';
 const DEFAULT_SETTINGS = {
   enabled: true,
-  rules: [{ id: crypto.randomUUID(), type: 'includes', pattern: '/api/', enabled: true }]
+  rules: [
+    {
+      id: crypto.randomUUID(),
+      type: "includes",
+      pattern: "/api/",
+      enabled: true
+    }
+  ]
 };
 
-async function loadSettings() {
-  const result = await chrome.storage.local.get([SETTINGS_KEY]);
-  const stored = result[SETTINGS_KEY];
-  if (!stored) return DEFAULT_SETTINGS;
-  return {
-    enabled: typeof stored.enabled === 'boolean' ? stored.enabled : true,
-    rules: Array.isArray(stored.rules) ? stored.rules : []
-  };
+function loadSettings() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(["requestLoggerSettings"], (result) => {
+      if (chrome.runtime.lastError) {
+        console.warn("[Request Filter Logger] Failed to read settings:", chrome.runtime.lastError);
+        resolve(DEFAULT_SETTINGS);
+        return;
+      }
+
+      const settings = result.requestLoggerSettings;
+      if (!settings) {
+        resolve(DEFAULT_SETTINGS);
+        return;
+      }
+
+      resolve({
+        enabled: typeof settings.enabled === "boolean" ? settings.enabled : true,
+        rules: Array.isArray(settings.rules) ? settings.rules : []
+      });
+    });
+  });
 }
 
 function matchesRule(url, rule) {
-  if (!rule?.enabled || !rule.pattern) return false;
-  if (rule.type === 'regex') {
+  if (!rule || !rule.enabled || !rule.pattern) {
+    return false;
+  }
+
+  if (rule.type === "regex") {
     try {
-      return new RegExp(rule.pattern).test(url);
-    } catch {
+      const regex = new RegExp(rule.pattern);
+      return regex.test(url);
+    } catch (error) {
+      console.warn("[Request Filter Logger] Invalid regex rule:", rule.pattern, error);
       return false;
     }
   }
+
   return url.includes(rule.pattern);
 }
 
-chrome.runtime.onInstalled.addListener(async () => {
+async function shouldLog(details) {
   const settings = await loadSettings();
-  await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
-});
+  if (!settings.enabled) {
+    return false;
+  }
 
-chrome.webRequest.onBeforeRequest.addListener(async (details) => {
-  const settings = await loadSettings();
-  if (!settings.enabled) return;
   const matchedRules = settings.rules.filter((rule) => matchesRule(details.url, rule));
-  if (!matchedRules.length) return;
+  if (matchedRules.length === 0) {
+    return false;
+  }
 
-  console.log('[Request Filter Logger] Matched request:', {
+  const payload = {
     time: new Date().toISOString(),
-    url: details.url,
     method: details.method,
     type: details.type,
     tabId: details.tabId,
     requestId: details.requestId,
+    url: details.url,
     matchedRules
-  });
-}, { urls: ['<all_urls>'] });
+  };
+
+  console.log("[Request Filter Logger] Matched request:", payload);
+  return true;
+}
+
+chrome.runtime.onInstalled.addListener(async () => {
+  const current = await loadSettings();
+  chrome.storage.local.set({ requestLoggerSettings: current });
+});
+
+chrome.webRequest.onBeforeRequest.addListener(
+  (details) => {
+    void shouldLog(details);
+  },
+  { urls: ["<all_urls>"] }
+);
